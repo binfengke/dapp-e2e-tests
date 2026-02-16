@@ -1,0 +1,24 @@
+{
+  "name": "dapp-e2e-tests",
+  "version": "1.0.0",
+  "description": "End-to-end tests for dApp interactions using Playwright and Synpress",
+  "scripts": {
+    "test": "playwright test",
+    "test:headed": "playwright test --headed",
+    "test:wallet": "playwright test tests/wallet-connect.spec.ts",
+    "test:transfer": "playwright test tests/token-transfer.spec.ts",
+    "test:nft": "playwright test tests/nft-mint.spec.ts",
+    "test:swap": "playwright test tests/swap.spec.ts",
+    "report": "playwright show-report"
+  },
+  "devDependencies": {
+    "@playwright/test": "^1.45.0",
+    "@synthetixio/synpress": "^4.0.0",
+    "dotenv": "^16.4.0",
+    "typescript": "^5.4.0",
+    "ethers": "^6.13.0"
+  },
+  "keywords": ["web3", "e2e", "playwright", "synpress", "metamask", "dapp", "testing"],
+  "author": "Binfeng Ke",
+  "license": "MIT"
+}

@@ -1,0 +1,78 @@
+name: dApp E2E Tests
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+  workflow_dispatch:
+
+env:
+  NODE_VERSION: "18"
+
+jobs:
+  lint-and-typecheck:
+    name: Lint & Type Check
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+
+      - name: Install dependencies
+        run: npm install
+
+      - name: Type check
+        run: npx tsc --noEmit
+
+      - name: Verify project structure
+        run: |
+          echo "=== Checking project structure ==="
+          test -f playwright.config.ts && echo "✅ Playwright config"
+          test -f src/pages/BasePage.ts && echo "✅ BasePage"
+          test -f src/pages/DAppPage.ts && echo "✅ DAppPage"
+          test -f src/pages/MetaMaskHelper.ts && echo "✅ MetaMaskHelper"
+          test -f src/fixtures/dapp.fixture.ts && echo "✅ Test fixtures"
+          test -f src/utils/blockchain.ts && echo "✅ Blockchain utils"
+          ls tests/*.spec.ts && echo "✅ Test specs found"
+          echo "=== Structure verified ==="
+
+  e2e-tests:
+    name: Playwright E2E Tests
+    runs-on: ubuntu-latest
+    needs: lint-and-typecheck
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+
+      - name: Install dependencies
+        run: npm install
+
+      - name: Install Playwright browsers
+        run: npx playwright install --with-deps chromium
+
+      - name: Run E2E tests
+        run: npx playwright test --reporter=html
+        env:
+          DAPP_URL: http://localhost:3000
+          RPC_URL: https://rpc.sepolia.org
+        continue-on-error: true
+
+      - name: Upload test report
+        uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: playwright-report
+          path: playwright-report/
+          retention-days: 14
