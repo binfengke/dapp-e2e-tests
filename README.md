@@ -9,11 +9,12 @@ End-to-end test framework for decentralized application (dApp) interactions usin
 | Suite | Tests | What It Covers |
 |-------|-------|---------------|
 | Wallet Connection | 8 | Connect, disconnect, reject, network switch, page refresh persistence |
+| Network Switching | 7 | Switch networks, reject switch, balance update, wrong network, rapid switching |
 | Token Transfer | 6 | Send ETH, reject tx, invalid address, zero amount, insufficient balance, on-chain verification |
 | NFT Mint | 5 | Mint, gallery update, reject, on-chain ownership, disabled state |
 | Token Swap | 6 | Swap execution, reject, price impact, zero amount, insufficient balance, ERC-20 approval flow |
 
-**Total: 25 test cases**
+**Total: 32 test cases**
 
 ## Architecture
 
@@ -30,6 +31,7 @@ dapp-e2e-tests/
 │       └── blockchain.ts         # On-chain verification helpers (ethers.js)
 ├── tests/
 │   ├── wallet-connect.spec.ts    # Wallet connection tests
+│   ├── network-switch.spec.ts    # Network switching tests
 │   ├── token-transfer.spec.ts    # ETH transfer tests
 │   ├── nft-mint.spec.ts          # NFT minting tests
 │   └── swap.spec.ts              # Token swap tests
