@@ -1,5 +1,14 @@
 import { BrowserContext, Page } from "@playwright/test";
 
+export interface TransactionDetails {
+  from?: string;
+  to?: string;
+  amount?: string;
+  network?: string;
+  gasFee?: string;
+  nonce?: string;
+}
+
 /**
  * Helper for MetaMask wallet interactions via Synpress.
  * Wraps common MetaMask popup operations for test readability.
@@ -88,5 +97,82 @@ export class MetaMaskHelper {
     await approveBtn.waitFor({ state: "visible", timeout: 15_000 });
     await approveBtn.click();
     await popup.waitForEvent("close", { timeout: 10_000 }).catch(() => {});
+  }
+
+  /**
+   * Extract transaction details shown in MetaMask confirm popup.
+   * Useful for asserting expected recipient, value, network, and fee before signing.
+   */
+  async getTransactionDetails(): Promise<TransactionDetails> {
+    const popup = await this.getPopup();
+    await popup.waitForLoadState("domcontentloaded");
+
+    const bodyText = await popup
+      .locator("body")
+      .innerText()
+      .catch(() => "");
+
+    return {
+      amount:
+        (await this.readFirstVisibleText(popup, [
+          '[data-testid="confirm-page-container-content"] [data-testid="confirm-detail-row-value"]',
+          '[data-testid="confirm-page-container-content"] [data-testid="confirm-page-container-summary-value"]',
+          '[data-testid="confirm-page-container-content"] [data-testid="confirm-page-container-content__amount"]',
+        ])) ?? this.extractFromBody(bodyText, [/Amount[:\s]+([^\n]+)/i]),
+      from:
+        (await this.readFirstVisibleText(popup, [
+          '[data-testid="confirm-page-container-content"] [data-testid="transaction-from-value"]',
+          '[data-testid="confirm-page-container-content"] [data-testid="sender-to-recipient__from"]',
+        ])) ??
+        this.extractFromBody(bodyText, [/From[:\s]+(0x[a-fA-F0-9]{40})/i]),
+      to:
+        (await this.readFirstVisibleText(popup, [
+          '[data-testid="confirm-page-container-content"] [data-testid="transaction-to-value"]',
+          '[data-testid="confirm-page-container-content"] [data-testid="sender-to-recipient__name"]',
+        ])) ??
+        this.extractFromBody(bodyText, [/To[:\s]+(0x[a-fA-F0-9]{40})/i]),
+      network:
+        (await this.readFirstVisibleText(popup, [
+          '[data-testid="confirm-page-container-content"] [data-testid="network-display"]',
+          '[data-testid="network-display"]',
+        ])) ?? this.extractFromBody(bodyText, [/Network[:\s]+([^\n]+)/i]),
+      gasFee:
+        (await this.readFirstVisibleText(popup, [
+          '[data-testid="confirm-page-container-content"] [data-testid="transaction-gas-fee"]',
+          '[data-testid="confirm-page-container-content"] [data-testid="confirm-detail-row__secondary-value"]',
+        ])) ?? this.extractFromBody(bodyText, [/Gas(?:\s*fee)?[:\s]+([^\n]+)/i]),
+      nonce:
+        (await this.readFirstVisibleText(popup, [
+          '[data-testid="confirm-page-container-content"] [data-testid="transaction-nonce"]',
+        ])) ?? this.extractFromBody(bodyText, [/Nonce[:\s]+([^\n]+)/i]),
+    };
+  }
+
+  private async readFirstVisibleText(
+    popup: Page,
+    selectors: string[]
+  ): Promise<string | undefined> {
+    for (const selector of selectors) {
+      const locator = popup.locator(selector).first();
+      const visible = await locator
+        .isVisible({ timeout: 1_500 })
+        .catch(() => false);
+      if (!visible) continue;
+
+      const text = (await locator.textContent().catch(() => null))?.trim();
+      if (text) return text;
+    }
+    return undefined;
+  }
+
+  private extractFromBody(
+    bodyText: string,
+    patterns: RegExp[]
+  ): string | undefined {
+    for (const pattern of patterns) {
+      const match = bodyText.match(pattern);
+      if (match?.[1]) return match[1].trim();
+    }
+    return undefined;
   }
 }
