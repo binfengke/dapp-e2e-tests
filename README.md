@@ -24,12 +24,13 @@ dapp-e2e-tests/
 │   ├── pages/
 │   │   ├── BasePage.ts           # Base page object with shared methods
 │   │   ├── DAppPage.ts           # dApp UI interactions (POM pattern)
-│   │   └── MetaMaskHelper.ts     # MetaMask popup automation
+│   │   └── MetaMaskHelper.ts     # MetaMask popup automation + transaction detail extraction
 │   ├── fixtures/
 │   │   └── dapp.fixture.ts       # Custom Playwright fixtures
 │   └── utils/
 │       └── blockchain.ts         # On-chain verification helpers (ethers.js)
 ├── tests/
+│   ├── metamask-helper.spec.ts   # MetaMask helper unit tests (transaction detail parsing)
 │   ├── wallet-connect.spec.ts    # Wallet connection tests
 │   ├── network-switch.spec.ts    # Network switching tests
 │   ├── token-transfer.spec.ts    # ETH transfer tests
