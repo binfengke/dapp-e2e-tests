@@ -104,10 +104,12 @@ npm run report
 
 ## CI/CD
 
-The GitHub Actions pipeline runs on every push and PR to `main`:
+On every push / PR to `main`, GitHub Actions runs lightweight checks that are safe for public CI:
 
-1. **Lint & Type Check** — Validates TypeScript compilation and project structure
-2. **Playwright E2E Tests** — Runs full test suite with HTML report artifact
+1. **Type Check & Unit Tests** — `tsc --noEmit` + MetaMask helper unit tests (no secrets required)
+2. **Structure Check** — Ensures critical framework files exist
+
+The **full Playwright E2E** suite (wallet + on-chain flows) is available via **workflow_dispatch** once you configure repository secrets `SEED_PHRASE` and `WALLET_PASSWORD`, and provide a reachable `DAPP_URL`.
 
 ## License
 
