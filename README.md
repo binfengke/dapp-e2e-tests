@@ -16,9 +16,45 @@ End-to-end test framework for decentralized application (dApp) interactions usin
 
 **E2E: 32 test cases** (+ **2 unit tests** for `MetaMaskHelper` parsing) — **34 total**
 
-## Architecture
+## Architecture (high-level)
 
+```mermaid
+flowchart TB
+  subgraph Automation["Automation"]
+    PW["Playwright runner"]
+    Fixtures["Custom fixtures<br/>(dapp + metamask)"]
+    POM["Page Objects<br/>(DAppPage)"]
+    MM["MetaMask helper<br/>(Synpress)"]
+    Chain["ethers.js<br/>(on-chain verification)"]
+    Env["Env vars / secrets<br/>SEED_PHRASE + WALLET_PASSWORD<br/>DAPP_URL + RPC_URL"]
+
+    Env --> PW
+    Env --> MM
+    PW --> Fixtures
+    Fixtures --> POM
+    Fixtures --> MM
+    PW --> Chain
+  end
+
+  subgraph Browser["Chromium"]
+    UI["dApp UI"]
+    Ext["MetaMask extension"]
+  end
+
+  PW -->|drives| Browser
+  POM --> UI
+  MM --> Ext
+
+  RPC["RPC endpoint / testnet"]
+  UI -->|JSON-RPC| RPC
+  Chain -->|JSON-RPC queries| RPC
+
+  PW --> Artifacts["Artifacts<br/>playwright-report/"]
 ```
+
+## Repo Layout
+
+```text
 dapp-e2e-tests/
 ├── src/
 │   ├── pages/
