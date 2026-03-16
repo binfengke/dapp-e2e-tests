@@ -1,16 +1,15 @@
 import { test, expect } from "../src/fixtures/dapp.fixture";
-import { isValidAddress, shortenAddress } from "../src/utils/blockchain";
+import { isValidAddress } from "../src/utils/blockchain";
 
 test.describe("Wallet Connection", () => {
-  test("TC-W01: Connect MetaMask wallet via Connect button", async ({ dapp, metamask }) => {
+  test("@smoke TC-W01: Connect MetaMask wallet via Connect button", async ({ dapp, metamask }) => {
     await dapp.clickConnectWallet();
     await metamask.approveConnection();
 
-    const connected = await dapp.isWalletConnected();
-    expect(connected).toBe(true);
+    await expect(dapp.walletAddress).toBeVisible();
 
     const address = await dapp.getConnectedAddress();
-    expect(isValidAddress(address) || address.includes("...")).toBe(true);
+    expect(isValidAddress(address) || address.includes("...")).toBeTruthy();
   });
 
   test("TC-W02: Display correct wallet address after connection", async ({ dapp, metamask }) => {
@@ -19,7 +18,7 @@ test.describe("Wallet Connection", () => {
 
     const address = await dapp.getConnectedAddress();
     expect(address).toBeTruthy();
-    expect(address.startsWith("0x")).toBe(true);
+    expect(address).toMatch(/^0x/i);
   });
 
   test("TC-W03: Display ETH balance after connection", async ({ dapp, metamask }) => {
@@ -37,38 +36,39 @@ test.describe("Wallet Connection", () => {
     await metamask.approveConnection();
 
     const network = await dapp.getNetworkName();
-    expect(network.toLowerCase()).toContain("sepolia");
+    expect(network).toMatch(/sepolia/i);
   });
 
   test("TC-W05: Disconnect wallet", async ({ dapp, metamask }) => {
     await dapp.clickConnectWallet();
     await metamask.approveConnection();
-    expect(await dapp.isWalletConnected()).toBe(true);
+    await expect(dapp.walletAddress).toBeVisible();
 
     await dapp.disconnect();
-    expect(await dapp.isWalletConnected()).toBe(false);
+    await expect(dapp.walletAddress).toBeHidden();
   });
 
   test("TC-W06: Reject MetaMask connection request", async ({ dapp, metamask }) => {
     await dapp.clickConnectWallet();
     await metamask.rejectRequest();
 
-    const connected = await dapp.isWalletConnected();
-    expect(connected).toBe(false);
+    await expect(dapp.walletAddress).toBeHidden();
   });
 
   test("TC-W07: Reconnect after page refresh", async ({ dapp, metamask, page }) => {
     await dapp.clickConnectWallet();
     await metamask.approveConnection();
-    expect(await dapp.isWalletConnected()).toBe(true);
+    await expect(dapp.walletAddress).toBeVisible();
 
     await page.reload();
-    await page.waitForLoadState("networkidle");
+    await page.waitForLoadState("domcontentloaded");
 
-    // Wallet should auto-reconnect or show connect button
-    const stillConnected = await dapp.isWalletConnected();
-    // Either auto-reconnects or requires manual reconnection — both are valid
-    expect(typeof stillConnected).toBe("boolean");
+    // Wallet should auto-reconnect OR show Connect Wallet button
+    await expect(async () => {
+      const connected = await dapp.walletAddress.isVisible();
+      const canConnect = await dapp.connectWalletButton.isVisible();
+      expect(connected || canConnect).toBeTruthy();
+    }).toPass({ timeout: 10_000 });
   });
 
   test("TC-W08: Handle network switch request", async ({ dapp, metamask }) => {

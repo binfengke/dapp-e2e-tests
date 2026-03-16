@@ -1,27 +1,30 @@
-import { Page, Locator, expect } from "@playwright/test";
+import { expect, Locator, Page } from "@playwright/test";
 
 /**
  * Base page object with common dApp interaction methods.
  */
 export class BasePage {
-  constructor(protected page: Page) {}
+  constructor(protected readonly page: Page) {}
 
   async navigate(path: string = "/") {
-    await this.page.goto(path);
-    await this.page.waitForLoadState("networkidle");
+    await this.page.goto(path, { waitUntil: "domcontentloaded" });
   }
 
   async waitForTxConfirmation(timeout: number = 60_000) {
-    await this.page.waitForSelector('[data-testid="tx-success"], .tx-confirmed', {
-      state: "visible",
-      timeout,
-    });
+    const confirmation = this.page
+      .getByTestId("tx-success")
+      .or(this.page.locator(".tx-confirmed"))
+      .first();
+    await expect(confirmation).toBeVisible({ timeout });
   }
 
   async getToastMessage(): Promise<string> {
-    const toast = this.page.locator(".toast-message, [role='alert']").first();
-    await toast.waitFor({ state: "visible", timeout: 10_000 });
-    return (await toast.textContent()) ?? "";
+    const toast = this.page
+      .getByRole("alert")
+      .or(this.page.locator(".toast-message"))
+      .first();
+    await expect(toast).toBeVisible({ timeout: 10_000 });
+    return (await toast.textContent())?.trim() ?? "";
   }
 
   async screenshotOnFailure(name: string) {

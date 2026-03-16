@@ -73,10 +73,43 @@ export async function getTokenBalance(
 export async function getNftOwner(
   rpcUrl: string,
   nftAddress: string,
-  tokenId: number
+  tokenId: bigint | number
 ): Promise<string> {
   const provider = new ethers.JsonRpcProvider(rpcUrl);
   const abi = ["function ownerOf(uint256) view returns (address)"];
   const contract = new ethers.Contract(nftAddress, abi, provider);
   return contract.ownerOf(tokenId);
+}
+
+/** Get the latest ERC-721 tokenId transferred to a wallet (best-effort, with lookback). */
+export async function getLatestErc721TokenIdTransferredTo(args: {
+  rpcUrl: string;
+  nftAddress: string;
+  toAddress: string;
+  lookbackBlocks?: number;
+}): Promise<bigint | null> {
+  const provider = new ethers.JsonRpcProvider(args.rpcUrl);
+  const currentBlock = await provider.getBlockNumber();
+  const lookbackBlocks = args.lookbackBlocks ?? 50_000;
+  const fromBlock = Math.max(0, currentBlock - lookbackBlocks);
+
+  const transferTopic = ethers.id("Transfer(address,address,uint256)");
+  const toTopic = ethers.zeroPadValue(ethers.getAddress(args.toAddress), 32);
+
+  const logs = await provider.getLogs({
+    address: args.nftAddress,
+    fromBlock,
+    toBlock: currentBlock,
+    topics: [transferTopic, null, toTopic],
+  });
+
+  if (logs.length === 0) return null;
+
+  const iface = new ethers.Interface([
+    "event Transfer(address indexed from, address indexed to, uint256 indexed tokenId)",
+  ]);
+  const parsed = iface.parseLog(logs[logs.length - 1]);
+  if (!parsed) return null;
+  const tokenId = parsed.args.tokenId as bigint;
+  return tokenId;
 }

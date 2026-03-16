@@ -5,6 +5,8 @@
   "scripts": {
     "test": "playwright test",
     "test:headed": "playwright test --headed",
+    "test:smoke": "playwright test --grep @smoke",
+    "test:onchain": "playwright test --grep @onchain",
     "test:wallet": "playwright test tests/wallet-connect.spec.ts",
     "test:transfer": "playwright test tests/token-transfer.spec.ts",
     "test:nft": "playwright test tests/nft-mint.spec.ts",

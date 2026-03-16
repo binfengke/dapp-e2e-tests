@@ -1,4 +1,4 @@
-import { BrowserContext, Page } from "@playwright/test";
+import { BrowserContext, Locator, Page } from "@playwright/test";
 
 export interface TransactionDetails {
   from?: string;
@@ -19,6 +19,19 @@ export class MetaMaskHelper {
     private page: Page
   ) {}
 
+  private isTimeoutError(err: unknown) {
+    return err instanceof Error && err.name === "TimeoutError";
+  }
+
+  private async isVisibleOrTimeout(locator: Locator, timeoutMs: number) {
+    try {
+      return await locator.isVisible({ timeout: timeoutMs });
+    } catch (err) {
+      if (this.isTimeoutError(err)) return false;
+      throw err;
+    }
+  }
+
   /**
    * Wait for MetaMask popup window to appear and return its page object.
    */
@@ -29,16 +42,34 @@ export class MetaMaskHelper {
   }
 
   /**
+   * Try to get a MetaMask popup window within a short timeout.
+   * Returns null when no popup appears (useful for optional flows).
+   */
+  async tryGetPopup(timeoutMs: number = 3_000): Promise<Page | null> {
+    try {
+      const popup = await this.context.waitForEvent("page", { timeout: timeoutMs });
+      await popup.waitForLoadState("domcontentloaded");
+      return popup;
+    } catch (err) {
+      if (this.isTimeoutError(err)) return null;
+      throw err;
+    }
+  }
+
+  /**
    * Approve a MetaMask connection request (the "Connect" popup).
    */
   async approveConnection() {
     const popup = await this.getPopup();
     // Synpress / MetaMask test popup flow
-    const nextBtn = popup.locator('button:has-text("Next"), [data-testid="page-container-footer-next"]');
-    if (await nextBtn.isVisible({ timeout: 5_000 }).catch(() => false)) {
+    const nextBtn = popup.getByRole("button", { name: /^next$/i });
+    if (await this.isVisibleOrTimeout(nextBtn, 2_000)) {
       await nextBtn.click();
     }
-    const connectBtn = popup.locator('button:has-text("Connect"), [data-testid="page-container-footer-next"]');
+
+    const connectBtn = popup
+      .getByRole("button", { name: /^connect$/i })
+      .or(popup.getByTestId("page-container-footer-next"));
     await connectBtn.click();
     await popup.waitForEvent("close", { timeout: 10_000 }).catch(() => {});
   }
@@ -48,10 +79,40 @@ export class MetaMaskHelper {
    */
   async confirmTransaction() {
     const popup = await this.getPopup();
-    const confirmBtn = popup.locator('button:has-text("Confirm"), [data-testid="page-container-footer-next"]');
+    const confirmBtn = popup
+      .getByRole("button", { name: /^confirm$/i })
+      .or(popup.getByTestId("page-container-footer-next"));
     await confirmBtn.waitFor({ state: "visible", timeout: 15_000 });
     await confirmBtn.click();
     await popup.waitForEvent("close", { timeout: 30_000 }).catch(() => {});
+  }
+
+  /**
+   * Confirm the next MetaMask popup, and if a second popup appears shortly after,
+   * confirm that one as well. Useful for flows like "approval → swap" where the
+   * approval step may or may not be required.
+   *
+   * Returns the number of popups confirmed (1 or 2).
+   */
+  async confirmTransactionWithOptionalSecondPopup(timeoutMs: number = 3_000): Promise<number> {
+    const first = await this.getPopup();
+    const firstConfirmBtn = first
+      .getByRole("button", { name: /^(approve|confirm)$/i })
+      .or(first.getByTestId("page-container-footer-next"));
+    await firstConfirmBtn.waitFor({ state: "visible", timeout: 15_000 });
+    await firstConfirmBtn.click();
+    await first.waitForEvent("close", { timeout: 30_000 }).catch(() => {});
+
+    const second = await this.tryGetPopup(timeoutMs);
+    if (!second) return 1;
+
+    const secondConfirmBtn = second
+      .getByRole("button", { name: /^confirm$/i })
+      .or(second.getByTestId("page-container-footer-next"));
+    await secondConfirmBtn.waitFor({ state: "visible", timeout: 15_000 });
+    await secondConfirmBtn.click();
+    await second.waitForEvent("close", { timeout: 30_000 }).catch(() => {});
+    return 2;
   }
 
   /**
@@ -59,7 +120,9 @@ export class MetaMaskHelper {
    */
   async signMessage() {
     const popup = await this.getPopup();
-    const signBtn = popup.locator('button:has-text("Sign"), [data-testid="request-signature__sign"]');
+    const signBtn = popup
+      .getByTestId("request-signature__sign")
+      .or(popup.getByRole("button", { name: /^sign$/i }));
     await signBtn.waitFor({ state: "visible", timeout: 15_000 });
     await signBtn.click();
     await popup.waitForEvent("close", { timeout: 10_000 }).catch(() => {});
@@ -70,9 +133,15 @@ export class MetaMaskHelper {
    */
   async rejectRequest() {
     const popup = await this.getPopup();
-    const rejectBtn = popup.locator('button:has-text("Reject"), button:has-text("Cancel")');
-    await rejectBtn.waitFor({ state: "visible", timeout: 10_000 });
-    await rejectBtn.click();
+    const rejectBtn = popup.getByRole("button", { name: /^reject$/i });
+    const cancelBtn = popup.getByRole("button", { name: /^cancel$/i });
+
+    if (await this.isVisibleOrTimeout(rejectBtn, 2_000)) {
+      await rejectBtn.click();
+    } else {
+      await cancelBtn.waitFor({ state: "visible", timeout: 10_000 });
+      await cancelBtn.click();
+    }
     await popup.waitForEvent("close", { timeout: 10_000 }).catch(() => {});
   }
 
@@ -81,9 +150,15 @@ export class MetaMaskHelper {
    */
   async approveNetworkSwitch() {
     const popup = await this.getPopup();
-    const switchBtn = popup.locator('button:has-text("Switch network"), button:has-text("Approve")');
-    await switchBtn.waitFor({ state: "visible", timeout: 10_000 });
-    await switchBtn.click();
+    const switchNetworkBtn = popup.getByRole("button", { name: /switch network/i });
+    const approveBtn = popup.getByRole("button", { name: /^approve$/i });
+
+    if (await this.isVisibleOrTimeout(switchNetworkBtn, 2_000)) {
+      await switchNetworkBtn.click();
+    } else {
+      await approveBtn.waitFor({ state: "visible", timeout: 10_000 });
+      await approveBtn.click();
+    }
     await popup.waitForEvent("close", { timeout: 10_000 }).catch(() => {});
   }
 
@@ -93,10 +168,39 @@ export class MetaMaskHelper {
   async approveTokenSpending() {
     const popup = await this.getPopup();
     // Some dApps show a "Use default" or custom approval amount
-    const approveBtn = popup.locator('button:has-text("Approve"), button:has-text("Confirm")');
+    const approveBtn = popup.getByRole("button", { name: /^approve$/i });
+    const confirmBtn = popup.getByRole("button", { name: /^confirm$/i });
+
+    if (!(await this.isVisibleOrTimeout(approveBtn, 2_000))) {
+      await confirmBtn.waitFor({ state: "visible", timeout: 15_000 });
+      await confirmBtn.click();
+      await popup.waitForEvent("close", { timeout: 10_000 }).catch(() => {});
+      return;
+    }
     await approveBtn.waitFor({ state: "visible", timeout: 15_000 });
     await approveBtn.click();
     await popup.waitForEvent("close", { timeout: 10_000 }).catch(() => {});
+  }
+
+  /**
+   * Approve token spending when an approval popup is expected but not guaranteed.
+   * Returns true when approval happened, false when no popup appeared.
+   */
+  async maybeApproveTokenSpending(timeoutMs: number = 3_000): Promise<boolean> {
+    const popup = await this.tryGetPopup(timeoutMs);
+    if (!popup) return false;
+
+    const approveBtn = popup.getByRole("button", { name: /^approve$/i });
+    const confirmBtn = popup.getByRole("button", { name: /^confirm$/i });
+
+    if (await this.isVisibleOrTimeout(approveBtn, 2_000)) {
+      await approveBtn.click();
+    } else {
+      await confirmBtn.waitFor({ state: "visible", timeout: 15_000 });
+      await confirmBtn.click();
+    }
+    await popup.waitForEvent("close", { timeout: 10_000 }).catch(() => {});
+    return true;
   }
 
   /**
@@ -154,9 +258,7 @@ export class MetaMaskHelper {
   ): Promise<string | undefined> {
     for (const selector of selectors) {
       const locator = popup.locator(selector).first();
-      const visible = await locator
-        .isVisible({ timeout: 1_500 })
-        .catch(() => false);
+      const visible = await this.isVisibleOrTimeout(locator, 1_500);
       if (!visible) continue;
 
       const text = (await locator.textContent().catch(() => null))?.trim();

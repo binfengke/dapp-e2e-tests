@@ -113,6 +113,10 @@ cp .env.example .env
 # Run all tests
 npm test
 
+# Run tagged suites
+npm run test:smoke
+npm run test:onchain
+
 # Run with browser visible
 npm run test:headed
 
@@ -125,6 +129,12 @@ npm run test:swap
 # View HTML report
 npm run report
 ```
+
+### Tags
+
+- `@smoke`: fast sanity checks for CI / PRs
+- `@onchain`: tests with explicit RPC reads (requires stable `RPC_URL` and deployed contracts where applicable)
+- `@manual`: requires a manual precondition (test will `skip` if not satisfied)
 
 ## Environment Variables
 
